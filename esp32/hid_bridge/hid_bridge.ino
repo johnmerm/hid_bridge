@@ -1,13 +1,19 @@
 /**
- * HID Bridge - ESP32 Bluetooth HID Device
+ * HID Bridge - ESP32 Bluetooth HID Device (Keyboard + Mouse)
  *
  * Receives keyboard and mouse events via WiFi and forwards them
  * as Bluetooth HID reports to connected devices (iPad, etc.)
+ *
+ * Required Libraries:
+ * - ESP32 BLE Keyboard (https://github.com/T-vK/ESP32-BLE-Keyboard)
+ * - ESP32 BLE Mouse (https://github.com/T-vK/ESP32-BLE-Mouse)
+ * - ArduinoJson (version 6.x)
  */
 
 #include <WiFi.h>
 #include <WebServer.h>
 #include <BleKeyboard.h>
+#include <BleMouse.h>
 #include <ArduinoJson.h>
 
 // WiFi Configuration
@@ -17,8 +23,9 @@ const char* password = "YOUR_WIFI_PASSWORD";
 // Server Configuration
 WebServer server(80);
 
-// BLE HID Device
+// BLE HID Devices
 BleKeyboard bleKeyboard("ESP32 HID Bridge", "HID Bridge", 100);
+BleMouse bleMouse("ESP32 HID Bridge", "HID Bridge", 100);
 
 // Status LED
 const int LED_PIN = 2;
@@ -29,9 +36,12 @@ void setup() {
 
   Serial.println("HID Bridge Starting...");
 
-  // Start Bluetooth HID
-  Serial.println("Starting BLE HID...");
+  // Start Bluetooth HID devices
+  Serial.println("Starting BLE Keyboard...");
   bleKeyboard.begin();
+
+  Serial.println("Starting BLE Mouse...");
+  bleMouse.begin();
 
   // Connect to WiFi
   Serial.print("Connecting to WiFi: ");
@@ -73,7 +83,7 @@ void loop() {
 
   // Blink LED when BLE is connected
   static unsigned long lastBlink = 0;
-  if (bleKeyboard.isConnected()) {
+  if (bleKeyboard.isConnected() || bleMouse.isConnected()) {
     if (millis() - lastBlink > 2000) {
       digitalWrite(LED_PIN, !digitalRead(LED_PIN));
       lastBlink = millis();
@@ -85,15 +95,24 @@ void handleRoot() {
   String html = "<html><body>";
   html += "<h1>HID Bridge</h1>";
   html += "<p>ESP32 IP: " + WiFi.localIP().toString() + "</p>";
-  html += "<p>BLE Status: " + String(bleKeyboard.isConnected() ? "Connected" : "Disconnected") + "</p>";
+  html += "<p>Keyboard BLE Status: " + String(bleKeyboard.isConnected() ? "Connected" : "Disconnected") + "</p>";
+  html += "<p>Mouse BLE Status: " + String(bleMouse.isConnected() ? "Connected" : "Disconnected") + "</p>";
   html += "<p>Device Name: ESP32 HID Bridge</p>";
+  html += "<h2>API Endpoints:</h2>";
+  html += "<ul>";
+  html += "<li>POST /keyboard - Send keyboard events</li>";
+  html += "<li>POST /mouse - Send mouse events</li>";
+  html += "<li>GET /status - Get device status</li>";
+  html += "</ul>";
   html += "</body></html>";
   server.send(200, "text/html", html);
 }
 
 void handleStatus() {
-  StaticJsonDocument<200> doc;
-  doc["ble_connected"] = bleKeyboard.isConnected();
+  StaticJsonDocument<256> doc;
+  doc["ble_connected"] = bleKeyboard.isConnected() || bleMouse.isConnected();
+  doc["keyboard_connected"] = bleKeyboard.isConnected();
+  doc["mouse_connected"] = bleMouse.isConnected();
   doc["wifi_connected"] = WiFi.status() == WL_CONNECTED;
   doc["ip"] = WiFi.localIP().toString();
 
@@ -126,25 +145,28 @@ void handleKeyboard() {
 
   if (strcmp(action, "press") == 0) {
     uint8_t key = doc["key"];
-    bleKeyboard.write(key);
-  } else if (strcmp(action, "pressRaw") == 0) {
+    bleKeyboard.press(key);
+    delay(10);
+    bleKeyboard.release(key);
+  } else if (strcmp(action, "down") == 0) {
     uint8_t key = doc["key"];
-    uint8_t modifier = doc["modifier"] | 0;
-    if (modifier) {
-      // Handle modifier keys
-    }
-    bleKeyboard.write(key);
+    bleKeyboard.press(key);
+  } else if (strcmp(action, "up") == 0) {
+    uint8_t key = doc["key"];
+    bleKeyboard.release(key);
   } else if (strcmp(action, "text") == 0) {
     const char* text = doc["text"];
     bleKeyboard.print(text);
+  } else if (strcmp(action, "releaseAll") == 0) {
+    bleKeyboard.releaseAll();
   }
 
   server.send(200, "application/json", "{\"status\":\"ok\"}");
 }
 
 void handleMouse() {
-  if (!bleKeyboard.isConnected()) {
-    server.send(503, "application/json", "{\"error\":\"BLE not connected\"}");
+  if (!bleMouse.isConnected()) {
+    server.send(503, "application/json", "{\"error\":\"BLE Mouse not connected\"}");
     return;
   }
 
@@ -164,11 +186,32 @@ void handleMouse() {
 
   const char* action = doc["action"];
 
-  // Note: BleKeyboard library doesn't support mouse by default
-  // You'll need to use BleMouse library or implement custom HID descriptors
-  // This is a placeholder for now
+  if (strcmp(action, "move") == 0) {
+    int8_t x = doc["x"] | 0;
+    int8_t y = doc["y"] | 0;
+    int8_t wheel = doc["wheel"] | 0;
 
-  server.send(501, "application/json", "{\"error\":\"Mouse not implemented yet\"}");
+    if (wheel != 0) {
+      bleMouse.move(x, y, wheel);
+    } else {
+      bleMouse.move(x, y);
+    }
+  } else if (strcmp(action, "click") == 0) {
+    uint8_t button = doc["button"] | MOUSE_LEFT;
+    bleMouse.click(button);
+  } else if (strcmp(action, "press") == 0) {
+    uint8_t button = doc["button"] | MOUSE_LEFT;
+    bleMouse.press(button);
+  } else if (strcmp(action, "release") == 0) {
+    uint8_t button = doc["button"] | MOUSE_LEFT;
+    bleMouse.release(button);
+  } else if (strcmp(action, "releaseAll") == 0) {
+    bleMouse.release(MOUSE_LEFT);
+    bleMouse.release(MOUSE_RIGHT);
+    bleMouse.release(MOUSE_MIDDLE);
+  }
+
+  server.send(200, "application/json", "{\"status\":\"ok\"}");
 }
 
 void handleNotFound() {

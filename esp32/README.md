@@ -1,8 +1,16 @@
 # ESP32 HID Bridge Firmware
 
+## Available Firmware Options
+
+### Option 1: hid_bridge.ino (Recommended - Keyboard + Mouse)
+Uses separate BLE Keyboard and BLE Mouse libraries for full functionality.
+
+### Option 2: hid_bridge_combo.ino (Alternative - Combo Library)
+Uses the ESP32-BLE-Combo library for combined keyboard and mouse support.
+
 ## Required Libraries
 
-Install these libraries in Arduino IDE:
+### For hid_bridge.ino (Recommended):
 
 1. **ESP32 Board Support**
    - Go to File → Preferences
@@ -10,22 +18,28 @@ Install these libraries in Arduino IDE:
    - Go to Tools → Board → Board Manager
    - Search for "esp32" and install
 
-2. **BLE Combo Library** (for keyboard + mouse)
+2. **ESP32 BLE Keyboard**
+   - Library Manager: Search "ESP32 BLE Keyboard" by T-vK
+   - Install latest version
+
+3. **ESP32 BLE Mouse**
+   - Library Manager: Search "ESP32 BLE Mouse" by T-vK
+   - Install latest version
+
+4. **ArduinoJson**
+   - Library Manager: Search "ArduinoJson" by Benoit Blanchon
+   - Install version 6.x
+
+### For hid_bridge_combo.ino (Alternative):
+
+1. **ESP32 Board Support** (same as above)
+
+2. **ESP32-BLE-Combo** (for keyboard + mouse in one library)
    - Download: https://github.com/blackketter/ESP32-BLE-Combo
    - Extract to Arduino/libraries folder
    - OR use Library Manager: Search "ESP32-BLE-Combo"
 
-3. **ArduinoJson**
-   - Library Manager: Search "ArduinoJson" by Benoit Blanchon
-   - Install version 6.x
-
-## Alternative: BLE Keyboard Only
-
-If you only need keyboard support (simpler):
-
-1. **ESP32 BLE Keyboard**
-   - Library Manager: Search "ESP32 BLE Keyboard"
-   - Use `hid_bridge.ino` instead of `hid_bridge_combo.ino`
+3. **ArduinoJson** (same as above)
 
 ## Configuration
 
