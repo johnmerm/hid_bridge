@@ -5,21 +5,37 @@ Transfer keyboard and mouse events from Ubuntu to iPad via ESP32 Bluetooth HID.
 ## Architecture
 
 ```
-Ubuntu Laptop → WiFi/HTTP → ESP32 → Bluetooth HID → iPad
+Ubuntu Laptop → Protocol → ESP32 → Bluetooth HID → iPad
 ```
 
 ### Components
 
 1. **Ubuntu Client** (`client/`) - Captures keyboard and mouse events
-2. **ESP32 Bridge** (`esp32/`) - WiFi server + Bluetooth HID device
-3. **Communication Protocol** - HTTP REST API for event transmission
+2. **ESP32 Bridge** (`esp32/`) - Protocol server + Bluetooth HID device
+3. **Communication Protocols** - Multiple options for different performance needs
+
+## Protocol Options
+
+HID Bridge supports **4 different communication protocols**, each optimized for different use cases:
+
+| Protocol | Latency | Best For |
+|----------|---------|----------|
+| **HTTP/JSON** | 10-50ms | Development, testing |
+| **WebSocket Binary** | 2-10ms | **Recommended** - Best balance |
+| **UDP Binary** | 1-5ms | Competitive gaming, lowest latency |
+| **Serial/USB** | 1-2ms | **Best performance** - wired connection |
+
+See [PROTOCOLS.md](PROTOCOLS.md) for detailed comparison.
 
 ## Features
 
-- ✅ Keyboard event forwarding
+- ✅ Keyboard event forwarding (all keys including modifiers)
 - ✅ Mouse event forwarding (movement, clicks, scroll)
-- ✅ Low latency transmission over WiFi
-- ✅ Bluetooth HID compatibility with iPad
+- ✅ Multiple protocol options (HTTP, WebSocket, UDP, Serial)
+- ✅ Ultra-low latency (1-2ms with Serial/USB)
+- ✅ Binary protocol for minimal overhead
+- ✅ Bluetooth HID compatibility with iPad/iPhone/Mac
+- ✅ Auto-detection of input devices
 
 ## Hardware Requirements
 
@@ -31,37 +47,69 @@ Ubuntu Laptop → WiFi/HTTP → ESP32 → Bluetooth HID → iPad
 
 ### ESP32
 - Arduino IDE or PlatformIO
-- ESP32 BLE HID library
+- ESP32 BLE Keyboard library
+- ESP32 BLE Mouse library
+- Additional libraries depending on protocol (see below)
 
 ### Ubuntu
 - Python 3.7+
-- Required packages: `evdev`, `requests`
+- Required packages: `evdev`, `requests`, `websockets`, `pyserial`
 
 ## Quick Start
 
-### 1. Setup ESP32
+Choose your protocol based on your needs:
 
-1. Open `esp32/hid_bridge/hid_bridge.ino` in Arduino IDE
-2. Install required libraries:
-   - ESP32 BLE HID by Neil Kolban
-3. Configure WiFi credentials in the code
-4. Upload to ESP32
-5. Note the IP address shown in Serial Monitor
+### Option 1: WebSocket Binary (Recommended)
 
-### 2. Setup Ubuntu Client
+**ESP32:**
+1. Open `esp32/hid_bridge/hid_bridge_websocket.ino`
+2. Install: ESP32 BLE Keyboard, ESP32 BLE Mouse, WebSocketsServer
+3. Configure WiFi and upload
 
+**Ubuntu:**
 ```bash
-cd client
-pip install -r requirements.txt
-sudo python3 hid_client.py --esp32-ip <ESP32_IP_ADDRESS>
+sudo python3 client/hid_client_websocket.py --esp32-ip <IP>
 ```
 
-### 3. Connect iPad
+### Option 2: Serial/USB (Best Performance)
 
-1. Go to Settings → Bluetooth on iPad
-2. Look for "ESP32 HID Bridge"
-3. Connect to it
-4. Start sending events from Ubuntu!
+**ESP32:**
+1. Open `esp32/hid_bridge/hid_bridge_serial.ino`
+2. Install: ESP32 BLE Keyboard, ESP32 BLE Mouse
+3. Upload to ESP32
+
+**Ubuntu:**
+```bash
+sudo python3 client/hid_client_serial.py --port /dev/ttyUSB0
+```
+
+### Option 3: UDP (Ultra Low Latency)
+
+**ESP32:**
+1. Open `esp32/hid_bridge/hid_bridge_udp.ino`
+2. Configure WiFi and upload
+
+**Ubuntu:**
+```bash
+sudo python3 client/hid_client_udp.py --esp32-ip <IP>
+```
+
+### Option 4: HTTP/JSON (Original)
+
+**ESP32:**
+1. Open `esp32/hid_bridge/hid_bridge.ino`
+2. Configure WiFi and upload
+
+**Ubuntu:**
+```bash
+sudo python3 client/hid_client.py --esp32-ip <IP>
+```
+
+### Connect iPad (All Protocols)
+
+1. Settings → Bluetooth on iPad
+2. Connect to "ESP32 HID Bridge"
+3. Done!
 
 ## Configuration
 
